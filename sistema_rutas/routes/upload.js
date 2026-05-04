@@ -52,11 +52,11 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
                 .input('id_vehiculo', sql.Int, idVehiculo)
                 .input('id_vendedor', sql.VarChar(50), idVendedor)
                 .input('fecha', sql.Date, fecha)
-                .input('datos_ruta', sql.NVarChar(sql.MAX), datosRutaJSON)
+                .input('datos_ruta', sql.VarChar(sql.MAX), datosRutaJSON)
                 .query(`
                     INSERT INTO rutas_diarias (id_vehiculo, id_vendedor, fecha, datos_ruta) 
                     OUTPUT INSERTED.id_ruta_diaria 
-                    VALUES (@id_vehiculo, @id_vendedor, @fecha, @datos_ruta)
+                    VALUES (@id_vehiculo, @id_vendedor, @fecha, COMPRESS(@datos_ruta))
                 `);
 
             const idRutaGenerada = insertRuta.recordset[0].id_ruta_diaria;

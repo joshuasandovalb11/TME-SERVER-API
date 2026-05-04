@@ -69,7 +69,7 @@ router.get('/:id_ruta/auditoria', async (req, res) => {
         const pool = await poolPromiseRutas;
         const resultRuta = await pool.request()
             .input('id', sql.Int, id_ruta)
-            .query('SELECT datos_ruta FROM rutas_diarias WHERE id_ruta_diaria = @id');
+            .query('SELECT CAST(DECOMPRESS(datos_ruta) AS VARCHAR(MAX)) AS datos_ruta FROM rutas_diarias WHERE id_ruta_diaria = @id');
 
         if (resultRuta.recordset.length === 0) return res.status(404).json({ error: "Ruta no encontrada." });
 
