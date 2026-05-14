@@ -1,6 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const { sql, poolPromise } = require('./db');
+const sql = require('mssql');
+
+const authDbConfig = {
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    port: parseInt(process.env.DB_PORT || '1433', 10),
+    database: process.env.DB_DATABASE,
+    options: {
+        encrypt: false,
+        trustServerCertificate: true,
+        enableArithAbort: true,
+    },
+    pool: {
+        max: 10,
+        min: 0,
+        idleTimeoutMillis: 30000,
+    },
+};
+
+const poolPromise = new sql.ConnectionPool(authDbConfig)
+    .connect()
+    .then((pool) => {
+        console.log('✅ Conectado a SQL Server (Auth)');
+        return pool;
+    })
+    .catch((err) => {
+        console.error('❌ Error conexión BD Auth:', err);
+        throw err;
+    });
 
 // ==========================================
 // ENDPOINTS PARA LA APP MÓVIL

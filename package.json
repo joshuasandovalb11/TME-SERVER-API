@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"No global test suite configured\"",
+    "test:visualizador": "node ./visualizador_rutas/tests/ruta_mapper.test.js",
+    "test:visualizador:integration": "node ./visualizador_rutas/tests/rutas_integration.test.js",
+    "test:visualizador:excel": "node ./visualizador_rutas/tests/excel_endpoint.test.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +17,7 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "form-data": "^4.0.5",
     "mssql": "^12.1.0",
     "multer": "^2.1.1",
     "papaparse": "^5.5.3",
