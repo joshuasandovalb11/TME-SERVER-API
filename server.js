@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const authRoutes = require('./auth');
+const { poolPromiseMapas } = require('./db_mapas');
 
 const app = express();
 const port = 3001;
@@ -20,7 +21,7 @@ app.use('/admin', express.static('public_admin'));
 // ENDPOINT HEALTH CHECK
 app.get("/api/health", async (req, res) => {
   try {
-    const pool = await poolPromise;
+    const pool = await poolPromiseMapas;
     await pool.request().query('SELECT 1'); 
     res.status(200).json({ status: 'OK', database: 'connected' });
   } catch (error) {

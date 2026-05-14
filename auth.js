@@ -1,35 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const sql = require('mssql');
-
-const authDbConfig = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    port: parseInt(process.env.DB_PORT || '1433', 10),
-    database: process.env.DB_DATABASE,
-    options: {
-        encrypt: false,
-        trustServerCertificate: true,
-        enableArithAbort: true,
-    },
-    pool: {
-        max: 10,
-        min: 0,
-        idleTimeoutMillis: 30000,
-    },
-};
-
-const poolPromise = new sql.ConnectionPool(authDbConfig)
-    .connect()
-    .then((pool) => {
-        console.log('✅ Conectado a SQL Server (Auth)');
-        return pool;
-    })
-    .catch((err) => {
-        console.error('❌ Error conexión BD Auth:', err);
-        throw err;
-    });
+const { sql, poolPromiseMapas } = require('./db_mapas');
 
 // ==========================================
 // ENDPOINTS PARA LA APP MÓVIL
@@ -47,7 +18,7 @@ router.get('/validar-dispositivo', async (req, res) => {
     }
 
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         const result = await pool.request()
             .input('tel', sql.VarChar, telefono)
             .query('SELECT Nombre, DeviceID, Activo FROM Empleados WHERE Telefono = @tel');
@@ -92,7 +63,7 @@ router.get('/validar-dispositivo', async (req, res) => {
 // 1. Obtener todos los empleados
 router.get('/admin/lista', async (req, res) => {
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         const result = await pool.request().query('SELECT * FROM Empleados ORDER BY Nombre ASC');
         res.json(result.recordset);
     } catch (error) {
@@ -104,7 +75,7 @@ router.get('/admin/lista', async (req, res) => {
 router.post('/admin/crear', async (req, res) => {
     const { telefono, nombre } = req.body;
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         await pool.request()
             .input('tel', sql.VarChar, telefono)
             .input('nom', sql.VarChar, nombre)
@@ -120,7 +91,7 @@ router.put('/admin/editar/:id', async (req, res) => {
     const { id } = req.params;
     const { telefono, nombre, activo } = req.body;
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         await pool.request()
             .input('id', sql.Int, id)
             .input('tel', sql.VarChar, telefono)
@@ -141,7 +112,7 @@ router.put('/admin/editar/:id', async (req, res) => {
 router.post('/admin/liberar', async (req, res) => {
     const { id } = req.body;
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         await pool.request()
             .input('id', sql.Int, id)
             .query('UPDATE Empleados SET DeviceID = NULL WHERE ID = @id');
@@ -155,7 +126,7 @@ router.post('/admin/liberar', async (req, res) => {
 router.delete('/admin/eliminar/:id', async (req, res) => {
     const { id } = req.params;
     try {
-        const pool = await poolPromise;
+        const pool = await poolPromiseMapas;
         await pool.request()
             .input('id', sql.Int, id)
             .query('DELETE FROM Empleados WHERE ID = @id');
