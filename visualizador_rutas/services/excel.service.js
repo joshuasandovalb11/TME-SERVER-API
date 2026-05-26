@@ -52,7 +52,15 @@ async function getRutaFromExcel(req, res) {
 
     let clientes = [];
     if (incluirClientes && vehiculoRow.id_vendedor) {
-      clientes = await fetchClientesByVendedor(vehiculoRow.id_vendedor);
+      try {
+        clientes = await fetchClientesByVendedor(vehiculoRow.id_vendedor);
+      } catch (err) {
+        return res.status(503).json({
+          success: false,
+          errorType: "REMOTE_DB_CONNECTION_ERROR",
+          message: "Falla de conexión: No se pudo cargar el catálogo de clientes. El servidor remoto no responde."
+        });
+      }
     }
 
     const rowParaMapper = {
@@ -157,7 +165,7 @@ async function fetchClientesByVendedor(vendedorId) {
       .filter(Boolean);
   } catch (error) {
     console.error('[visualizador] No fue posible cargar clientes remotos:', error.message || error);
-    return [];
+    throw new Error('REMOTE_DB_CONNECTION_ERROR');
   }
 }
 

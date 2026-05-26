@@ -77,7 +77,7 @@ async function fetchClientesByVendedor(vendedorId) {
       .filter(Boolean);
   } catch (error) {
     console.error('[visualizador] No fue posible cargar clientes remotos:', error.message || error);
-    return [];
+    throw new Error('REMOTE_DB_CONNECTION_ERROR');
   }
 }
 
@@ -200,9 +200,18 @@ async function getRutaDetalle(req, res) {
 
     const rawEvents = parseRawEventsJson(row.datos_ruta);
 
-    const clientes = includeClientes
-      ? await fetchClientesByVendedor(row.id_vendedor)
-      : [];
+    let clientes = [];
+    if (includeClientes) {
+      try {
+        clientes = await fetchClientesByVendedor(row.id_vendedor);
+      } catch (err) {
+        return res.status(503).json({
+          success: false,
+          errorType: "REMOTE_DB_CONNECTION_ERROR",
+          message: "Falla de conexión: No se pudo cargar el catálogo de clientes. El servidor remoto no responde."
+        });
+      }
+    }
 
     const processedTrip = buildProcessedTripPayload({
       row,
@@ -224,7 +233,8 @@ async function getRutaDetalle(req, res) {
 module.exports = {
   getRutasResumen,
   getRutaDetalle,
-  getAvailableDates
+  getAvailableDates,
+  fetchClientesByVendedor
 };
 
 async function getAvailableDates(req, res) {
