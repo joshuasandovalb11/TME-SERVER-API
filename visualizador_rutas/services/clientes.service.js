@@ -99,14 +99,17 @@ async function getClientes(req, res) {
 async function obtenerVendedores() {
   const pool = await poolPromiseRemota;
   const result = await pool.request().query(`
-    SELECT ID_VENDEDOR as Vend
+    SELECT ID_VENDEDOR as id, NOM_VENDEDOR as nombre
     FROM PBIT_VENDEDORES
     WHERE (INACTIVO = 0 OR INACTIVO IS NULL)
       AND TIPO = 'E'
     ORDER BY NOM_VENDEDOR ASC
   `);
 
-  return result.recordset.map((row) => row.Vend);
+  return result.recordset.map((row) => ({
+    id: String(row.id).trim(),
+    nombre: String(row.nombre).trim()
+  }));
 }
 
 module.exports = { getClientes, obtenerVendedores };
