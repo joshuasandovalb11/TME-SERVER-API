@@ -169,6 +169,82 @@ async function fetchClientesByVendedor(vendedorId) {
   }
 }
 
+async function getRutasFromExcelBatch(req, res) {
+  const minStopDuration = req.query.minStopDuration ? Number(req.query.minStopDuration) : 5;
+  const incluirClientes = req.query.incluirClientes ? req.query.incluirClientes === 'true' : true;
+
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: 'No se proporcionaron archivos Excel.' });
+  }
+
+  const processedTrips = [];
+
+  for (const file of req.files) {
+    const filePath = file.path;
+
+    try {
+      const datosProcesados = await procesarArchivoRuta(filePath);
+      const { placa, fecha, datosRutaJSON, viajesAnaliticos } = datosProcesados;
+      
+      const pool = await poolPromiseRutas;
+      const resultVehiculo = await pool.request()
+        .input('placa', sql.NVarChar(20), placa)
+        .query(`
+          SELECT v.id_vehiculo, v.id_vendedor, v.descripcion AS vehiculo, v.placa,
+                 COALESCE(vend.nombre, v.id_vendedor) AS nombre_vendedor
+          FROM vehiculos v
+          LEFT JOIN vendedores vend ON vend.id_vendedor = v.id_vendedor
+          WHERE v.placa = @placa
+        `);
+
+      if (resultVehiculo.recordset.length > 0) {
+        const vehiculoRow = resultVehiculo.recordset[0];
+        const rawEvents = parseRawEventsJson(datosRutaJSON);
+
+        let clientes = [];
+        if (incluirClientes && vehiculoRow.id_vendedor) {
+           clientes = await fetchClientesByVendedor(vehiculoRow.id_vendedor);
+        }
+
+        const rowParaMapper = {
+          id_ruta_diaria: null,
+          fecha,
+          id_vendedor: vehiculoRow.id_vendedor,
+          nombre_vendedor: vehiculoRow.nombre_vendedor,
+          placa: vehiculoRow.placa,
+          vehiculo: vehiculoRow.vehiculo
+        };
+
+        const processedTrip = buildProcessedTripPayload({
+          row: rowParaMapper,
+          viajesAnaliticos,
+          rawEvents,
+          minStopDuration,
+          clientes
+        });
+
+        processedTrip.source = 'excel-file';
+        processedTrip.originalFileName = file.originalname; 
+
+        processedTrips.push(processedTrip);
+      } else {
+        console.warn(`[visualizador batch] Vehículo con placa ${placa} no encontrado en archivo ${file.originalname}`);
+      }
+    } catch (error) {
+      console.error(`[visualizador batch] Error procesando archivo ${file.originalname}:`, error.message || error);
+    } finally {
+      try {
+        await fs.unlink(filePath);
+      } catch (unlinkError) {
+        console.error(`[visualizador batch] No se pudo eliminar ${filePath}:`, unlinkError);
+      }
+    }
+  }
+
+  return res.status(200).json(processedTrips);
+}
+
 module.exports = {
-  getRutaFromExcel
+  getRutaFromExcel,
+  getRutasFromExcelBatch
 };

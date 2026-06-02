@@ -230,11 +230,87 @@ async function getRutaDetalle(req, res) {
   }
 }
 
+async function getRutasBatch(req, res) {
+  const idsRaw = req.query.ids;
+  const includeClientes = toBool(req.query.incluirClientes, false);
+  const minStopDuration = Number(req.query.minStopDuration || 5);
+
+  if (!idsRaw) {
+    return res.status(400).json({ error: 'El parámetro ids es obligatorio (ej. ?ids=1,2,3).' });
+  }
+
+  const ids = idsRaw.split(',').map(Number).filter(id => Number.isInteger(id) && id > 0);
+  
+  if (ids.length === 0) {
+    return res.status(400).json({ error: 'No se enviaron IDs válidos.' });
+  }
+
+  try {
+    const pool = await poolPromiseRutas;
+
+    const resultRutas = await pool.request().query(`
+      SELECT
+        rd.id_ruta_diaria,
+        CAST(rd.fecha AS DATE) AS fecha,
+        COALESCE(vend.id_vendedor, rd.id_vendedor) AS id_vendedor,
+        vend.nombre AS nombre_vendedor,
+        v.placa,
+        v.descripcion AS vehiculo,
+        CAST(DECOMPRESS(rd.datos_ruta) AS VARCHAR(MAX)) AS datos_ruta
+      FROM rutas_diarias rd
+      INNER JOIN vehiculos v ON v.id_vehiculo = rd.id_vehiculo
+      LEFT JOIN vendedores vend ON vend.id_vendedor = v.id_vendedor
+      WHERE rd.id_ruta_diaria IN (${ids.join(',')})
+    `);
+
+    if (!resultRutas.recordset.length) {
+      return res.status(200).json([]);
+    }
+
+    const processedTrips = [];
+
+    for (const row of resultRutas.recordset) {
+      const resultViajes = await pool.request()
+        .input('id', sql.Int, row.id_ruta_diaria)
+        .query(`
+          SELECT hora_inicio, latitud_inicio, longitud_inicio, hora_fin, latitud_final, longitud_final 
+          FROM viajes 
+          WHERE id_ruta_diaria = @id 
+          ORDER BY hora_inicio ASC
+        `);
+
+      const rawEvents = parseRawEventsJson(row.datos_ruta);
+
+      let clientes = [];
+      if (includeClientes && row.id_vendedor) {
+        clientes = await fetchClientesByVendedor(row.id_vendedor);
+      }
+
+      const processedTrip = buildProcessedTripPayload({
+        row,
+        viajesAnaliticos: resultViajes.recordset,
+        rawEvents,
+        minStopDuration,
+        clientes
+      });
+
+      processedTrip.source = 'database';
+      processedTrips.push(processedTrip);
+    }
+
+    return res.status(200).json(processedTrips);
+  } catch (error) {
+    console.error('[visualizador batch] Error obteniendo detalle en lote:', error);
+    return res.status(500).json({ error: 'Error interno al obtener el batch de rutas.' });
+  }
+}
+
 module.exports = {
   getRutasResumen,
   getRutaDetalle,
   getAvailableDates,
-  fetchClientesByVendedor
+  fetchClientesByVendedor,
+  getRutasBatch
 };
 
 async function getAvailableDates(req, res) {
