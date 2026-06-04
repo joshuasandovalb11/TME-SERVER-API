@@ -1,7 +1,7 @@
-const { sql, poolPromiseBuscarClientes } = require('../db_buscar_clientes');
+const { sql, poolRemotoBuscarClientesPromise } = require('../../db_remota_buscar_clientes');
 
 async function obtenerCredencial(tipo) {
-  const pool = await poolPromiseBuscarClientes;
+  const pool = await poolRemotoBuscarClientesPromise;
   const request = pool.request();
   request.input('tipo', sql.VarChar, tipo);
 

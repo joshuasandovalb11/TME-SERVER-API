@@ -1,5 +1,5 @@
 const express = require('express');
-const { obtenerCredencial } = require('../services/credenciales.service');
+const { obtenerCredencial } = require('../../services/supervisor/credenciales.service');
 
 const router = express.Router();
 

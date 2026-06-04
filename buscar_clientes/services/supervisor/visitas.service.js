@@ -1,4 +1,4 @@
-const { sql, poolPromiseBuscarClientes } = require('../db_buscar_clientes');
+const { sql, poolPromiseBuscarClientes } = require('../../db_buscar_clientes');
 
 async function obtenerVisitas(deviceId) {
   const pool = await poolPromiseBuscarClientes;

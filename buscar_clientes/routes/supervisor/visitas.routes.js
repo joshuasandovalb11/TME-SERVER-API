@@ -4,7 +4,7 @@ const {
   alternarVisita,
   obtenerHistorial,
   resetearVisitas,
-} = require('../services/visitas.service');
+} = require('../../services/supervisor/visitas.service');
 
 const router = express.Router();
 

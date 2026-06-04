@@ -1,4 +1,4 @@
-const { sql, poolPromiseRutas } = require('../../sistema_rutas/db_rutas');
+const { sql, poolPromiseRutas } = require('../../../sistema_rutas/db_rutas');
 
 const activarDispositivo = async (idVendedor, pin, idDispositivo, modelo) => {
   const pool = await poolPromiseRutas;

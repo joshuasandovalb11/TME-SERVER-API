@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const dispositivosService = require('../services/dispositivos.service');
+const dispositivosService = require('../../services/general/dispositivos.service');
 
 router.post('/activar', async (req, res) => {
   try {
