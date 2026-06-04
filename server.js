@@ -22,7 +22,7 @@ app.use('/admin', express.static('public_admin'));
 app.get("/api/health", async (req, res) => {
   try {
     const pool = await poolPromiseMapas;
-    await pool.request().query('SELECT 1'); 
+    await pool.request().query('SELECT 1');
     res.status(200).json({ status: 'OK', database: 'connected' });
   } catch (error) {
     console.error("Health Check Failed:", error.message);
@@ -32,10 +32,22 @@ app.get("/api/health", async (req, res) => {
 
 // Heartbeat para debug
 setInterval(() => {
-    console.log(`[Heartbeat] Servidor activo. Uptime: ${process.uptime()}s`);
+  console.log(`[Heartbeat] Servidor activo. Uptime: ${process.uptime()}s`);
 }, 60000);
 
-app.listen(port, () => {
+const http = require('http');
+const { initSockets } = require('./visualizador_rutas/sockets/dispositivos.socket');
+const { startDBFlushCron } = require('./visualizador_rutas/services/realtime.service');
+
+const server = http.createServer(app);
+
+// Iniciar WebSockets
+initSockets(server);
+
+// Iniciar Cron Job (Lazy Flush)
+startDBFlushCron();
+
+server.listen(port, () => {
   console.log(`API Interna SQL corriendo en http://localhost:${port}`);
   console.log('--- Configuración ---');
   console.log(`Servidor activo en puerto: ${port}`);
