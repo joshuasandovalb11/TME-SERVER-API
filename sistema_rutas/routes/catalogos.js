@@ -22,15 +22,15 @@ router.get('/vendedores', async (req, res) => {
 router.post('/vendedores', async (req, res) => {
     const { id_vendedor, nombre } = req.body;
 
-    if (!id_vendedor || !nombre) {
-        return res.status(400).json({ error: "El ID (iniciales) y el nombre son obligatorios." });
+    if (!id_vendedor || !nombre || id_vendedor.trim() === '' || nombre.trim() === '') {
+        return res.status(400).json({ error: "El ID (iniciales) y el nombre son obligatorios y no pueden estar vacíos." });
     }
 
     try {
         const pool = await poolPromiseRutas;
         await pool.request()
-            .input('id', sql.VarChar(50), id_vendedor.toUpperCase())
-            .input('nombre', sql.NVarChar(150), nombre)
+            .input('id', sql.VarChar(50), id_vendedor.trim().toUpperCase())
+            .input('nombre', sql.NVarChar(150), nombre.trim())
             .query('INSERT INTO vendedores (id_vendedor, nombre, estatus) VALUES (@id, @nombre, 1)');
         
         res.status(201).json({ mensaje: "Vendedor registrado correctamente." });
@@ -47,11 +47,15 @@ router.put('/vendedores/:id', async (req, res) => {
     const { id } = req.params;
     const { nombre, estatus } = req.body;
 
+    if (!nombre || nombre.trim() === '') {
+        return res.status(400).json({ error: "El nombre es obligatorio y no puede estar vacío." });
+    }
+
     try {
         const pool = await poolPromiseRutas;
         await pool.request()
             .input('id', sql.VarChar(50), id)
-            .input('nombre', sql.NVarChar(150), nombre)
+            .input('nombre', sql.NVarChar(150), nombre.trim())
             .input('estatus', sql.Bit, estatus)
             .query('UPDATE vendedores SET nombre = @nombre, estatus = @estatus WHERE id_vendedor = @id');
         
@@ -85,16 +89,20 @@ router.get('/vehiculos', async (req, res) => {
 router.post('/vehiculos', async (req, res) => {
     const { placa, descripcion, id_vendedor } = req.body;
 
-    if (!placa) {
-        return res.status(400).json({ error: "La placa es obligatoria." });
+    if (!placa || placa.trim() === '') {
+        return res.status(400).json({ error: "La placa es obligatoria y no puede estar vacía." });
     }
+
+    const placaLimpia = placa.trim().toUpperCase();
+    const descripcionLimpia = descripcion ? descripcion.trim() : null;
+    const idVendLimpio = (id_vendedor && id_vendedor.trim() !== '') ? id_vendedor.trim() : null;
 
     try {
         const pool = await poolPromiseRutas;
         await pool.request()
-            .input('placa', sql.NVarChar(20), placa.toUpperCase())
-            .input('descripcion', sql.NVarChar(100), descripcion)
-            .input('id_vend', sql.VarChar(50), id_vendedor || null)
+            .input('placa', sql.NVarChar(20), placaLimpia)
+            .input('descripcion', sql.NVarChar(100), descripcionLimpia)
+            .input('id_vend', sql.VarChar(50), idVendLimpio)
             .query('INSERT INTO vehiculos (placa, descripcion, id_vendedor) VALUES (@placa, @descripcion, @id_vend)');
         
         res.status(201).json({ mensaje: "Vehículo registrado correctamente." });
@@ -111,11 +119,13 @@ router.put('/vehiculos/:id/asignacion', async (req, res) => {
     const { id } = req.params;
     const { id_vendedor } = req.body;
 
+    const idVendLimpio = (id_vendedor && id_vendedor.trim() !== '') ? id_vendedor.trim() : null;
+
     try {
         const pool = await poolPromiseRutas;
         await pool.request()
             .input('id', sql.Int, id)
-            .input('id_vend', sql.VarChar(50), id_vendedor)
+            .input('id_vend', sql.VarChar(50), idVendLimpio)
             .query('UPDATE vehiculos SET id_vendedor = @id_vend WHERE id_vehiculo = @id');
         
         res.status(200).json({ mensaje: "Vehículo reasignado correctamente." });
