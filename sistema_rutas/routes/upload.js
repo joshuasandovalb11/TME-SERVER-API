@@ -18,6 +18,19 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
     try {
         const datosProcesados = await procesarArchivoRuta(filePath);
         const { placa, fecha, datosRutaJSON, viajesAnaliticos } = datosProcesados;
+
+        if (!placa || !fecha || !datosRutaJSON) {
+            return res.status(400).json({ error: "Datos corruptos: falta placa, fecha o datos JSON del archivo procesado." });
+        }
+
+        const eventosCrudos = JSON.parse(datosRutaJSON || '[]');
+        if (
+            (!viajesAnaliticos || !Array.isArray(viajesAnaliticos) || viajesAnaliticos.length === 0) &&
+            (eventosCrudos.length === 0)
+        ) {
+            return res.status(400).json({ error: "Datos corruptos: El archivo no contiene viajes ni coordenadas GPS válidas." });
+        }
+
         const pool = await poolPromiseRutas;
 
         const resultVehiculo = await pool.request()
@@ -27,7 +40,7 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
         if (resultVehiculo.recordset.length === 0) {
             return res.status(404).json({ error: `El vehículo con placa ${placa} no está registrado en el sistema. Regístralo primero.` });
         }
-        
+
         const idVehiculo = resultVehiculo.recordset[0].id_vehiculo;
         const idVendedor = resultVehiculo.recordset[0].id_vendedor;
 
@@ -61,15 +74,15 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
 
             const idRutaGenerada = insertRuta.recordset[0].id_ruta_diaria;
 
-            for (const viaje of viajesAnaliticos) {
+            for (const viaje of (viajesAnaliticos || [])) {
                 await transaction.request()
                     .input('id_ruta_diaria', sql.Int, idRutaGenerada)
                     .input('hora_inicio', sql.VarChar(10), viaje.hora_inicio)
-                    .input('latitud_inicio', sql.Decimal(11,8), viaje.latitud_inicio)
-                    .input('longitud_inicio', sql.Decimal(11,8), viaje.longitud_inicio)
+                    .input('latitud_inicio', sql.Decimal(11, 8), viaje.latitud_inicio)
+                    .input('longitud_inicio', sql.Decimal(11, 8), viaje.longitud_inicio)
                     .input('hora_fin', sql.VarChar(10), viaje.hora_fin)
-                    .input('latitud_final', sql.Decimal(11,8), viaje.latitud_final)
-                    .input('longitud_final', sql.Decimal(11,8), viaje.longitud_final)
+                    .input('latitud_final', sql.Decimal(11, 8), viaje.latitud_final)
+                    .input('longitud_final', sql.Decimal(11, 8), viaje.longitud_final)
                     .query(`
                         INSERT INTO viajes 
                         (id_ruta_diaria, hora_inicio, latitud_inicio, longitud_inicio, hora_fin, latitud_final, longitud_final)
@@ -87,7 +100,7 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
                     vendedor: idVendedor,
                     fecha: fecha,
                     eventosProcesados: JSON.parse(datosRutaJSON).length,
-                    viajesRegistrados: viajesAnaliticos.length
+                    viajesRegistrados: (viajesAnaliticos || []).length
                 }
             });
 
@@ -99,8 +112,8 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
                     console.error("Error inesperado en rollback:", rollbackError);
                 }
             }
-            
-            throw insertError; 
+
+            throw insertError;
         }
 
     } catch (error) {
@@ -136,29 +149,29 @@ router.post('/preview', upload.single('archivoExcel'), async (req, res) => {
             `);
 
         const vehiculoEncontrado = resultVehiculo.recordset[0];
-        
+
         let esDuplicado = false;
         if (vehiculoEncontrado) {
             const resultDuplicado = await pool.request()
                 .input('id_vehiculo', sql.Int, vehiculoEncontrado.id_vehiculo)
                 .input('fecha', sql.Date, fecha)
                 .query('SELECT id_ruta_diaria FROM rutas_diarias WHERE id_vehiculo = @id_vehiculo AND fecha = @fecha');
-            
+
             esDuplicado = resultDuplicado.recordset.length > 0;
         }
 
         res.status(200).json({
             placa,
             fecha,
-            vendedorLabel: vehiculoEncontrado 
-                ? `${vehiculoEncontrado.nombre_vendedor} (${vehiculoEncontrado.id_vendedor})` 
+            vendedorLabel: vehiculoEncontrado
+                ? `${vehiculoEncontrado.nombre_vendedor} (${vehiculoEncontrado.id_vendedor})`
                 : "Vehículo no registrado",
-            viajesCount: viajesAnaliticos.length,
+            viajesCount: (viajesAnaliticos || []).length,
             idVendedor: vehiculoEncontrado?.id_vendedor || null,
-            errorValidacion: !vehiculoEncontrado 
-                ? "El vehículo no existe en el catálogo." 
-                : esDuplicado 
-                    ? "Esta ruta ya fue cargada anteriormente." 
+            errorValidacion: !vehiculoEncontrado
+                ? "El vehículo no existe en el catálogo."
+                : esDuplicado
+                    ? "Esta ruta ya fue cargada anteriormente."
                     : null
         });
 
