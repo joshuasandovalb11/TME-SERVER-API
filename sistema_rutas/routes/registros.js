@@ -36,11 +36,11 @@ router.get('/', async (req, res) => {
                 rd.fecha,
                 v.placa,
                 v.descripcion AS vehiculo,
-                vend.id_vendedor AS id_vendedor,
+                rd.id_vendedor AS id_vendedor,
                 vend.nombre AS nombre_vendedor
             FROM rutas_diarias rd
-            INNER JOIN vehiculos v ON rd.id_vehiculo = v.id_vehiculo
-            LEFT JOIN vendedores vend ON v.id_vendedor = vend.id_vendedor
+            LEFT JOIN vehiculos v ON rd.id_vehiculo = v.id_vehiculo
+            LEFT JOIN vendedores vend ON rd.id_vendedor = vend.id_vendedor
         `;
 
         if (fechaInicio && fechaFin) {
