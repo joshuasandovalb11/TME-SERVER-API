@@ -120,8 +120,17 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
         console.error("Error procesando ruta:", error);
         res.status(500).json({ error: "Error interno procesando el archivo: " + error.message });
     } finally {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        if (filePath && fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (err) {
+                console.error(`Error eliminando archivo temporal ${filePath}:`, err.message);
+                setTimeout(() => {
+                    fs.unlink(filePath, (e) => {
+                        if (e) console.error(`Fallo al reintentar eliminar ${filePath}:`, e.message);
+                    });
+                }, 3000);
+            }
         }
     }
 });
@@ -178,8 +187,17 @@ router.post('/preview', upload.single('archivoExcel'), async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Error analizando el archivo: " + error.message });
     } finally {
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
+        if (filePath && fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+            } catch (err) {
+                console.error(`Error eliminando archivo temporal ${filePath}:`, err.message);
+                setTimeout(() => {
+                    fs.unlink(filePath, (e) => {
+                        if (e) console.error(`Fallo al reintentar eliminar ${filePath}:`, e.message);
+                    });
+                }, 3000);
+            }
         }
     }
 });
