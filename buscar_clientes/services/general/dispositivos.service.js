@@ -36,20 +36,32 @@ const activarDispositivo = async (idVendedor, pin, idDispositivo, modelo) => {
     // 3. Desactivar dispositivos anteriores
     await transaction.request()
       .input('idVendedor', sql.VarChar(50), idVendedor)
+      .input('idDispositivo', sql.VarChar(100), idDispositivo)
       .query(`
-        UPDATE dispositivos 
-        SET estatus = 0 
+        DELETE FROM dispositivos 
         WHERE id_vendedor = @idVendedor
+          AND id_dispositivo != @idDispositivo
       `);
 
-    // 4. Insertar nuevo dispositivo
+    // 4. Upsert
     await transaction.request()
       .input('idDispositivo', sql.VarChar(100), idDispositivo)
       .input('idVendedor', sql.VarChar(50), idVendedor)
       .input('modeloDispositivo', sql.VarChar(100), modelo)
       .query(`
-        INSERT INTO dispositivos (id_dispositivo, id_vendedor, modelo_dispositivo, estatus) 
-        VALUES (@idDispositivo, @idVendedor, @modeloDispositivo, 1)
+        IF EXISTS (SELECT 1 FROM dispositivos WHERE id_dispositivo = @idDispositivo)
+        BEGIN
+            UPDATE dispositivos 
+            SET id_vendedor = @idVendedor,
+                modelo_dispositivo = @modeloDispositivo,
+                estatus = 1
+            WHERE id_dispositivo = @idDispositivo
+        END
+        ELSE
+        BEGIN
+            INSERT INTO dispositivos (id_dispositivo, id_vendedor, modelo_dispositivo, estatus) 
+            VALUES (@idDispositivo, @idVendedor, @modeloDispositivo, 1)
+        END
       `);
 
     await transaction.commit();
