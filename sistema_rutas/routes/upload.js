@@ -124,10 +124,10 @@ router.post('/', upload.single('archivoExcel'), async (req, res) => {
             try {
                 fs.unlinkSync(filePath);
             } catch (err) {
-                console.error(`Error eliminando archivo temporal ${filePath}:`, err.message);
+                // Falla en el primer intento por bloqueo de Windows/Antivirus, intentamos en 3s
                 setTimeout(() => {
                     fs.unlink(filePath, (e) => {
-                        if (e) console.error(`Fallo al reintentar eliminar ${filePath}:`, e.message);
+                        if (e) console.error(`Fallo definitivo al eliminar archivo temporal ${filePath}:`, e.message);
                     });
                 }, 3000);
             }
@@ -191,10 +191,10 @@ router.post('/preview', upload.single('archivoExcel'), async (req, res) => {
             try {
                 fs.unlinkSync(filePath);
             } catch (err) {
-                console.error(`Error eliminando archivo temporal ${filePath}:`, err.message);
+                // Falla en el primer intento por bloqueo de Windows/Antivirus, intentamos en 3s
                 setTimeout(() => {
                     fs.unlink(filePath, (e) => {
-                        if (e) console.error(`Fallo al reintentar eliminar ${filePath}:`, e.message);
+                        if (e) console.error(`Fallo definitivo al eliminar archivo temporal ${filePath}:`, e.message);
                     });
                 }, 3000);
             }
