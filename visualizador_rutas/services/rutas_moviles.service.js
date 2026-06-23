@@ -29,8 +29,8 @@ const procesarBatchTelemetry = async (deviceId, date, columns, newEvents) => {
       .input('idVendedor', sql.VarChar(50), idVendedor)
       .input('fecha', sql.Date, date)
       .query(`
-        SELECT id_ruta_movil, datos_ruta 
-        FROM rutas_moviles_diarias 
+        SELECT id_ruta_movil, CAST(DECOMPRESS(datos_ruta) AS NVARCHAR(MAX)) AS datos_ruta 
+        FROM rutas_moviles_diarias WITH (UPDLOCK, HOLDLOCK)
         WHERE id_vendedor = @idVendedor AND fecha = @fecha
       `);
 
@@ -41,8 +41,9 @@ const procesarBatchTelemetry = async (deviceId, date, columns, newEvents) => {
 
     if (resultRuta.recordset.length === 0) {
       // INSERT
-      // Aseguramos que los eventos nuevos estén ordenados por timestamp
-      const sortedEvents = [...newEvents].sort((a, b) => a[timestampIndex] - b[timestampIndex]);
+      const uniqueEvents = new Map();
+      newEvents.forEach(evt => uniqueEvents.set(evt[timestampIndex], evt));
+      const sortedEvents = Array.from(uniqueEvents.values()).sort((a, b) => a[timestampIndex] - b[timestampIndex]);
       const payloadData = JSON.stringify({ columns, events: sortedEvents });
 
       await transaction.request()
@@ -52,18 +53,24 @@ const procesarBatchTelemetry = async (deviceId, date, columns, newEvents) => {
         .input('datosRuta', sql.NVarChar(sql.MAX), payloadData)
         .query(`
           INSERT INTO rutas_moviles_diarias (id_dispositivo, id_vendedor, fecha, datos_ruta, fecha_sincronizacion) 
-          VALUES (@idDispositivo, @idVendedor, @fecha, @datosRuta, GETDATE())
+          VALUES (@idDispositivo, @idVendedor, @fecha, COMPRESS(@datosRuta), GETDATE())
         `);
     } else {
       // UPSERT / UPDATE
       const idRutaMovil = resultRuta.recordset[0].id_ruta_movil;
       const oldPayload = JSON.parse(resultRuta.recordset[0].datos_ruta);
-      
+
+      if (JSON.stringify(oldPayload.columns) !== JSON.stringify(columns)) {
+        throw new Error('INVALID_PAYLOAD: Schema Mismatch');
+      }
+
       const oldEvents = oldPayload.events || [];
-      const mergedEvents = oldEvents.concat(newEvents);
-      
-      // Ordenar por timestamp (índice 2 o el que corresponda según la columna)
-      mergedEvents.sort((a, b) => a[timestampIndex] - b[timestampIndex]);
+      const uniqueEvents = new Map();
+
+      oldEvents.forEach(evt => uniqueEvents.set(evt[timestampIndex], evt));
+      newEvents.forEach(evt => uniqueEvents.set(evt[timestampIndex], evt));
+
+      const mergedEvents = Array.from(uniqueEvents.values()).sort((a, b) => a[timestampIndex] - b[timestampIndex]);
 
       const updatedPayload = JSON.stringify({ columns, events: mergedEvents });
 
@@ -72,7 +79,7 @@ const procesarBatchTelemetry = async (deviceId, date, columns, newEvents) => {
         .input('datosRuta', sql.NVarChar(sql.MAX), updatedPayload)
         .query(`
           UPDATE rutas_moviles_diarias 
-          SET datos_ruta = @datosRuta, 
+          SET datos_ruta = COMPRESS(@datosRuta), 
               fecha_sincronizacion = GETDATE() 
           WHERE id_ruta_movil = @idRutaMovil
         `);
@@ -109,7 +116,7 @@ const getRutaMovilDetalle = async (req, res) => {
           r.id_vendedor, 
           v.nombre AS nombre_vendedor, 
           d.modelo_dispositivo, 
-          r.datos_ruta
+          CAST(DECOMPRESS(r.datos_ruta) AS NVARCHAR(MAX)) AS datos_ruta
         FROM rutas_moviles_diarias r
         LEFT JOIN vendedores v ON v.id_vendedor = r.id_vendedor
         LEFT JOIN dispositivos d ON d.id_dispositivo = r.id_dispositivo
@@ -128,8 +135,8 @@ const getRutaMovilDetalle = async (req, res) => {
     const rawEvents = events.map(arr => {
       const [lat, lng, ts, speed, state] = arr;
       // Convertir ts a hora local de Tijuana
-      const date = new Date(ts * 1000);
-      const h = date.toLocaleTimeString('en-US', { hour12: false, timeZone: 'America/Tijuana' }); 
+      const date = new Date(ts > 9999999999 ? ts : ts * 1000);
+      const h = date.toLocaleTimeString('en-US', { hour12: false, timeZone: 'America/Tijuana' });
       return {
         h: h,
         lat: Number(lat),

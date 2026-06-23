@@ -1,10 +1,56 @@
+// visualizador_rutas/services/realtime.service.js
 const { sql, poolPromiseRutas } = require('../../sistema_rutas/db_rutas');
 
 let locationBuffer = new Map();
+const deviceSellerCache = new Map();
+const resolvingDevices = new Set();
+
+const resolveSellerId = async (deviceId) => {
+  if (resolvingDevices.has(deviceId)) return;
+  resolvingDevices.add(deviceId);
+
+  try {
+    const pool = await poolPromiseRutas;
+    const result = await pool.request()
+      .input('deviceId', sql.VarChar(100), deviceId)
+      .query(`SELECT id_vendedor FROM dispositivos WHERE id_dispositivo = @deviceId AND estatus = 1`);
+
+    if (result.recordset.length > 0 && result.recordset[0].id_vendedor) {
+      deviceSellerCache.set(deviceId, result.recordset[0].id_vendedor);
+      console.log(`✅ Vendedor resuelto en caché: ${deviceId} -> ${result.recordset[0].id_vendedor}`);
+    } else {
+      console.warn(`⚠️ Dispositivo no encontrado o inactivo: ${deviceId}`);
+    }
+  } catch (error) {
+    console.error(`❌ Error al resolver id_vendedor para el dispositivo ${deviceId}:`, error.message);
+  } finally {
+    resolvingDevices.delete(deviceId);
+  }
+};
 
 const updateLocationInBuffer = (data) => {
-  if (!data || !data.id_dispositivo) return;
-  locationBuffer.set(data.id_dispositivo, data);
+  if (!data || !data.d) return null;
+
+  const sellerId = deviceSellerCache.get(data.d);
+
+  if (!sellerId) {
+    resolveSellerId(data.d);
+    return null;
+  }
+
+  const expandedLocation = {
+    id_dispositivo: data.d,
+    id_vendedor: sellerId,
+    latitud: data.lt,
+    longitud: data.ln,
+    velocidad: data.sp || 0,
+    estado_actividad: 'ACTIVO',
+    nivel_bateria: 100
+  };
+
+  locationBuffer.set(expandedLocation.id_dispositivo, expandedLocation);
+
+  return expandedLocation;
 };
 
 let flushCounter = 0;
@@ -12,18 +58,17 @@ const flushBufferToDB = async () => {
   if (locationBuffer.size === 0) return;
 
   const currentBuffer = locationBuffer;
-  locationBuffer = new Map(); // Swap inmediately (Thread-safe swap in Node.js)
+  locationBuffer = new Map();
   const locations = Array.from(currentBuffer.values());
 
   const flushId = ++flushCounter;
   const timeLabel = `DB_FLUSH_TIME_${flushId}`;
-  
+
   try {
     const jsonBuffer = JSON.stringify(locations);
     const pool = await poolPromiseRutas;
 
     console.time(timeLabel);
-    // OPENJSON combinado con MERGE (UPSERT masivo)
     await pool.request()
       .input('jsonBuffer', sql.NVarChar(sql.MAX), jsonBuffer)
       .query(`
@@ -82,13 +127,12 @@ const flushBufferToDB = async () => {
     console.timeEnd(timeLabel);
 
   } catch (error) {
-    // Evitamos matar el proceso si hay error de red
     console.error('❌ Error en flushBufferToDB masivo:', error.message || error);
   }
 };
 
 const startDBFlushCron = () => {
-  setInterval(flushBufferToDB, 15000); // 15 segundos
+  setInterval(flushBufferToDB, 15000);
   console.log('✅ Cron job (Buffer to DB Masivo) iniciado cada 15s');
 };
 

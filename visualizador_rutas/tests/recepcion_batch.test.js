@@ -1,4 +1,5 @@
 const { sql, poolPromiseRutas } = require('../../sistema_rutas/db_rutas');
+const { procesarBatchTelemetry } = require('../services/rutas_moviles.service');
 
 const TEST_DEVICE_ID = 'UUID-TEST-BATCH-9999';
 const TEST_VENDEDOR_ID = 'ARA';
@@ -50,16 +51,12 @@ async function runTest() {
       ]
     };
     
-    let res1 = await fetch(ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload1)
-    });
+    let res1 = await procesarBatchTelemetry(payload1.deviceId, payload1.date, payload1.columns, payload1.events);
     
-    if (res1.ok) {
+    if (res1 && res1.success) {
       console.log('✅ Primer payload insertado exitosamente (Status: 200).');
     } else {
-      throw new Error(`Fallo en el primer insert: ${res1.status}`);
+      throw new Error(`Fallo en el primer insert`);
     }
 
     // ==========================================
@@ -76,16 +73,12 @@ async function runTest() {
       ]
     };
 
-    let res2 = await fetch(ENDPOINT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload2)
-    });
+    let res2 = await procesarBatchTelemetry(payload2.deviceId, payload2.date, payload2.columns, payload2.events);
 
-    if (res2.ok) {
+    if (res2 && res2.success) {
       console.log('✅ Segundo payload actualizado exitosamente (Status: 200).');
     } else {
-      throw new Error(`Fallo en el upsert: ${res2.status}`);
+      throw new Error(`Fallo en el upsert`);
     }
 
     // ==========================================
@@ -95,7 +88,7 @@ async function runTest() {
     const dbResult = await pool.request()
       .input('idVendedor', sql.VarChar(50), TEST_VENDEDOR_ID)
       .input('fecha', sql.Date, TEST_DATE)
-      .query(`SELECT datos_ruta FROM rutas_moviles_diarias WHERE id_vendedor = @idVendedor AND fecha = @fecha`);
+      .query(`SELECT CAST(DECOMPRESS(datos_ruta) AS NVARCHAR(MAX)) AS datos_ruta FROM rutas_moviles_diarias WHERE id_vendedor = @idVendedor AND fecha = @fecha`);
 
     if (dbResult.recordset.length === 0) {
       throw new Error('No se encontró el registro en la BD.');
