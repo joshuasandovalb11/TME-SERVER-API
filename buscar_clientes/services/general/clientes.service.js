@@ -55,7 +55,33 @@ async function buscarClienteApp(clienteId) {
     ORDER BY ID_SUCURSAL ASC
   `);
 
-  return result.recordset.map((row) => {
+  const rawData = result.recordset;
+
+  const matrizOriginal = rawData.find(row => row.SucursalID === 0 && row.SucursalNombre === 'MATRIZ') || {};
+
+  const clientesLimpios = rawData.filter(row => {
+    if (row.SucursalID === 0 && row.SucursalNombre === 'MATRIZ') {
+      return true;
+    }
+
+    const nomSucursal = (row.SucursalNombre || '').toUpperCase().trim();
+    const razonSocial = (row.NombreCliente || '').toUpperCase().trim();
+    const esClonPorNombre = nomSucursal === razonSocial;
+    const esClonPorMatriz = nomSucursal === 'MATRIZ';
+
+    const esClonPorGPS =
+      row.GPS_LAT === matrizOriginal.GPS_LAT &&
+      row.GPS_LON === matrizOriginal.GPS_LON &&
+      row.GPS_LAT && row.GPS_LAT !== '0' && row.GPS_LAT !== '';
+
+    if (esClonPorNombre || esClonPorMatriz || esClonPorGPS) {
+      return false;
+    }
+
+    return true;
+  });
+
+  return clientesLimpios.map((row) => {
     const lat = parseFloat(row.GPS_LAT);
     const lng = parseFloat(row.GPS_LON);
 
